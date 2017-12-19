@@ -1,3 +1,3 @@
-ÒÀÀµ¿â
+ï»¿ä¾èµ–åº“
 Apache Portable Runtime 1.6.3
-µØÖ· http://mirrors.shuosc.org/apache//apr/apr-1.6.3.tar.gz
+åœ°å€ http://mirrors.shuosc.org/apache//apr/apr-1.6.3.tar.gz
