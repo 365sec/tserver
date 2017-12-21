@@ -3,6 +3,7 @@
 
 #include "buffer_queue.h"
 #include "config.h"
+#include "atomic.h"
 
 typedef struct conn_rec_t{
 	apr_pool_t *pool;
@@ -13,7 +14,7 @@ typedef struct conn_rec_t{
 	int remote_port;
 
 	/*are we still talking*/
-	unsigned aborted;
+	atomic aborted;
 
 	/*ID of this connection; unique at any point of time*/
 	long id;
@@ -28,8 +29,7 @@ typedef struct conn_rec_t{
 
 	/*fd*/
 	int fd;
-	int heart_count;
-	pthread_mutex_t heart_mutex;
+	atomic heart_count;
 	int ref;
 	pthread_mutex_t ref_mutex;
 	struct conn_rec_t *before;
@@ -46,4 +46,5 @@ void add_connect(conn_rec *c);
 void release_connect(conn_rec *c);
 void addref(conn_rec *c);
 int deref(conn_rec *c);
+
 #endif

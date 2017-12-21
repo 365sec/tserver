@@ -1,12 +1,12 @@
 #include <string.h>
 #include "buffer_queue.h"
 
-struct buffer_queue_t * buffer_queue_init(apr_pool_t *con_rec)
+struct buffer_queue_t * buffer_queue_init(apr_pool_t *con_pool)
 {
 	struct buffer_queue_t *queue  = NULL;
 	apr_pool_t *pool = NULL;
-	if(apr_pool_create(&pool, con_rec) != APR_SUCCESS){
-	  printf("缓存队列初始化失败!\n");
+	if(apr_pool_create(&pool, con_pool) != APR_SUCCESS){
+		zlog_info(z_cate, "缓存队列初始化失败!");
 	  return NULL;
 	}
 	queue = (struct buffer_queue_t *)apr_pcalloc(pool, sizeof(struct buffer_queue_t));

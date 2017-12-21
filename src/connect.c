@@ -10,22 +10,20 @@ conn_rec *create_conn(int fd, const char *remote_ip, int remote_port)
 	}
 	conn_rec *c = (conn_rec *)apr_pcalloc(trans, sizeof(conn_rec));
 	c->id = 0;
-	c->aborted = 0;
+	//c->aborted = 0;
 	c->fd = fd;
 	c->pool = trans;
-	c->ref = 0;
 	if(remote_ip){
 		c->remote_ip = (char *)apr_pcalloc(trans, strlen(remote_ip)+1);
 		strcpy(c->remote_ip, remote_ip);
 	}
 	c->remote_port = remote_port;
-	c->heart_count = 0;
 
 	c->recv_queue = buffer_queue_init(c->pool);
 	c->send_queue = buffer_queue_init(c->pool);
-
-	pthread_mutex_init (&c->heart_mutex, NULL);
-	pthread_mutex_init (&c->ref_mutex, NULL);
+	atomic_init(&c->heart_count);
+	atomic_init(&c->aborted);
+	pthread_mutex_init(&c->ref_mutex, NULL);
 
 	return c;
 }
@@ -58,7 +56,7 @@ void release_connect(conn_rec *c)
 	if(c->recv_queue->pool){
 		apr_pool_destroy(c->recv_queue->pool);
 	}
-	pthread_mutex_destroy(&c->heart_mutex);
+	atomic_destroy(&c->heart_count);
 	pthread_mutex_destroy(&c->ref_mutex);
 	apr_pool_destroy(c->pool);
 
@@ -86,7 +84,7 @@ int deref(conn_rec *c)
 void add_connect(conn_rec *c)
 {
 	addref(c);
-	pthread_mutex_lock(&conn_list_lock);
+	pthread_mutex_lock(&conn_list_mutex);
 	if(!conn_last){
 		conn_head = conn_last = c;
 		c->before = c->next = NULL;
@@ -96,6 +94,7 @@ void add_connect(conn_rec *c)
 		c->next= NULL;
 		conn_last = c;
 	}
-	pthread_mutex_unlock(&conn_list_lock);
+	pthread_mutex_unlock(&conn_list_mutex);
 }
+
 

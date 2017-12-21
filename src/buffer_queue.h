@@ -22,7 +22,7 @@ struct buffer_queue_t
     unsigned short   size;
 };
 
-struct buffer_queue_t * buffer_queue_init(apr_pool_t *con_rec);
+struct buffer_queue_t * buffer_queue_init(apr_pool_t *con_pool);
 void buffer_queue_detroy(struct buffer_queue_t *p_queue);
 /*函数功能：往缓冲队列中追加数据*/
 int buffer_queue_write(struct buffer_queue_t *p_queue,unsigned char *p_dest,int rd_len);

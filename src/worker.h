@@ -18,7 +18,7 @@ struct job_node_t{
 	struct buffer_queue_t* buf_queue;
 	struct job_node_t *before;
 	struct job_node_t *next;
-	struct conn_rec *con;
+	conn_rec *con;
 
 };
 
@@ -27,11 +27,15 @@ struct job_queue{
     unsigned short   max_size;
     unsigned short   size;
 };
-
-void push_packet(struct buffer_queue_t *buf_queue,struct conn_rec *c);
+/*函数功能: 将接收到的完整数据包放到任务队列*/
+void push_packet(struct buffer_queue_t *buf_queue, conn_rec *c);
+/*函数功能: 从任务队列中移除并销毁该任务数据包*/
 struct buffer_queue_t *remove_packet(struct job_node_t *j);
-void push_result(struct buffer_queue_t *buf_queue,struct conn_rec *c);
+/*函数功能: 从任务队列弹出第一个数据包*/
+struct job_node_t *pop_front_packet();
+void job_node_destroy(struct job_node_t *node);
+void push_result(struct buffer_queue_t *buf_queue, conn_rec *c);
 struct buffer_queue_t *remove_result(struct job_node_t *j);
-struct job_node_t *create_job_node(struct buffer_queue_t* buf_queue,struct conn_rec *c);
-
+struct job_node_t *create_job_node(struct buffer_queue_t* buf_queue, conn_rec *c);
+void *work_thread(void *p);
 #endif
