@@ -1,4 +1,5 @@
 #include<apr_hash.h>
+#include<time.h>
 
 #include "parser_bson_data.h"
 
@@ -19,25 +20,23 @@ void parser_bson_init(){
 	if(apr_pool_create(&bson_parse_pool, NULL) != APR_SUCCESS){
 		 printf("内存池初始化失败!\n");
 	}
-	printf("herer\n");
 	bson_parse_hash = apr_hash_make(bson_parse_pool);
 	if (bson_parse_hash == NULL){
 		printf("make error\n");
 	}
 	for(i = 0 ; i < sizeof(bson_parser)/sizeof(bson_parser[0]);i++){
-		//apr_pstrdup(bson_parse_pool,bson_parser[i].key);
-
+	 //apr_pstrdup(bson_parse_pool,bson_parser[i].key);
 	   apr_hash_set(bson_parse_hash,bson_parser[i].key,APR_HASH_KEY_STRING,&bson_parser[i]);
 	}
-	printf("end\n");
 }
-
 
 struct command_req * parser_bson_connect(bson_iter_t *piter){
    bool error = false ;
    bson_subtype_t    subtype;
    uint32_t uuidlen;
    const uint8_t *uuidbin;
+   struct command_req*  req =  command_req_new(COMMAND_TYPE_CONNECT);
+
    while (bson_iter_next (piter))
    {
 	   const char *key = bson_iter_key(piter);
@@ -67,9 +66,8 @@ struct command_req * parser_bson_connect(bson_iter_t *piter){
 
 	   }
    }
-   return NULL;
+   return req;
 }
-
 
 
 void parse_bson(uint8_t * my_data, size_t my_data_len){
@@ -110,7 +108,47 @@ void parse_bson(uint8_t * my_data, size_t my_data_len){
 		       }
 	        }
 	    }
+	    bson_destroy (&bson);
 	 }
+}
+
+
+bson_t *  encode_command_rep_to_bson (struct command_rep * rep){
+	  bson_t child;
+	  bson_t * b_object = bson_new();
+	  bool error = FALSE;
+	  switch (rep->type)
+	  {
+	    case  COMMAND_TYPE_PING:
+	      bson_append_document_begin (b_object, "ping", -1, &child);
+	      BSON_APPEND_INT64 (&child, "timestamp", time(NULL));
+	      bson_append_document_end (b_object, &child);
+	      break;
+	    case  COMMAND_TYPE_OK:
+	      bson_append_document_begin (b_object, "ok", -1, &child);
+	      BSON_APPEND_UTF8(&child, "id", "ii");
+	      bson_append_document_end (b_object, &child);
+	      break;
+	    default:
+	        printf ("BSON for type '%d' not implemmented", rep->type);
+	        error = TRUE;
+	        break;
+	  }
+	  if(error){
+		  bson_destroy (b_object);
+	  }
+
+	  /**
+	   *BSON_APPEND_UTF8
+	   *  case SIM_COMMAND_TYPE_NOACK:
+      bson_append_document_begin (b_object, "noack", -1, &child);
+      BSON_APPEND_INT32  (&child, "id", cmd->id);
+      sim_uuid = sim_uuid_new_from_string (cmd->data.noack.your_sensor_id);
+      bin_uuid = sim_uuid_get_uuid (sim_uuid);
+      BSON_APPEND_BINARY (&child, "your_sensor_id", BSON_SUBTYPE_UUID, *bin_uuid, 16);
+      g_object_unref (sim_uuid);
+      bson_append_document_end (b_object, &child);
+      break;*/
 }
 
 
