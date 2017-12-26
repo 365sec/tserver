@@ -1,6 +1,10 @@
 #include "worker.h"
 #include <pthread.h>
 #include "atomic.h"
+#include "command.h"
+#include "parser_bson_data.h"
+#include "handler_command.h"
+
 
 struct job_queue packet_queue;
 pthread_mutex_t packet_queue_mutex;
@@ -86,6 +90,9 @@ struct job_node_t *pop_front_packet()
 	ret = packet_queue.p_head;
 	if(packet_queue.p_head){
 		packet_queue.p_head = packet_queue.p_head->next;
+		if(packet_queue.p_head == NULL){
+			packet_queue.p_last = packet_queue.p_head;
+		}
 	}
 	return ret;
 }
@@ -135,6 +142,34 @@ struct buffer_queue_t *remove_result(struct job_node_t *j)
 	return ret;
 }
 
+/*处理一个数据包并返回数据*/
+struct buffer_queue_t * do_packet(struct job_node_t *job)
+{
+	int size = job->buf_queue->size;
+	char *buf = apr_pcalloc(job->pool, size+1);
+
+	buffer_queue_read(job->buf_queue, buf, size);
+
+	struct command_req *req= parse_bson(buf, size);
+	if(req){
+		struct command_rep *rep = handler_command(req);
+		if(rep){
+			bson_t * bson_result = encode_command_rep_to_bson(rep);
+			if(bson_result){
+				const uint8_t *data = bson_get_data (bson_result);
+				int towrite = bson_result->len;
+				struct buffer_queue_t *result_buf = buffer_queue_init(job->con->pool);
+				buffer_queue_write(result_buf, data, towrite);
+				bson_destroy(bson_result);
+				command_req_free(&req);
+				command_rep_free(&rep);
+				return result_buf;
+			}
+		}
+	}
+	return NULL;
+}
+
 void *work_thread(void *p)
 {
 	zlog_info(z_cate, "工作线程已启动 tid=%lu!", pthread_self());
@@ -143,7 +178,9 @@ void *work_thread(void *p)
 		pthread_mutex_lock(&packet_queue_mutex);
 		while(NULL == (first = pop_front_packet())){
 			pthread_cond_wait(&packet_queue_cond, &packet_queue_mutex);
+			zlog_info(z_cate, "pthread_cond_wait!");
 			if(atomic_read(&server_stop)){
+				zlog_info(z_cate, "server_stop!");
 				return 0;
 			}
 		}
@@ -155,11 +192,11 @@ void *work_thread(void *p)
 		}
 		zlog_debug(z_cate, "接收到一个数据包.");
 
-		struct buffer_queue_t *buf_queue = buffer_queue_init(first->con->pool);
-		//buffer_queue_write(buf_queue, data, strlen(data));
-		buffer_queue_write_ex(buf_queue, first->buf_queue);
-		push_result(buf_queue, first->con);
-		wakeup();
+		struct buffer_queue_t *result_buf = do_packet(first);
+		if(result_buf){
+			push_result(result_buf, first->con);
+			wakeup();
+		}
 		job_node_destroy(first);
 	}
 }

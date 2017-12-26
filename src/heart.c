@@ -30,7 +30,6 @@ void check_handler()
             continue;
         }
         else {
-        	//printf("c->heart_count ++\n");
         	atomic_inc(&c->heart_count);
             c = c->next;
         }

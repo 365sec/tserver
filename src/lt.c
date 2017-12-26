@@ -69,86 +69,40 @@ int epoll_del_event(int ep, int fd, void* conn, uint32_t event){
 void* epoll_loop(void *param)
 {
 	int i;
-	unsigned nfds;
+	int nfds;
 	int sockfd;
 	int ret;
 	struct epoll_event events[MAX_EPOLL_EVENT_COUNT];
-	for(i = 0; i< 100000; i++){
-		zlog_info(z_cate, "IO线程已启动 tid=%lu!", pthread_self());
-	}
+
+	zlog_info(z_cate, "IO线程已启动 tid=%lu!", pthread_self());
 	while(!atomic_read(&server_stop))
 	{
 		nfds = epoll_wait(epfd, events, MAX_EPOLL_EVENT_COUNT, -1);
 		for(i = 0; i < nfds; i++)
 		{
 			conn_rec *c = (conn_rec *)events[i].data.ptr;
+			if(!c) continue;
 			sockfd =  c->fd;
 			if(sockfd == listenfd)
 			{
-				int connfd;
-				struct sockaddr_in clientaddr = {0};
-				socklen_t clilen = sizeof(clientaddr);
-
-				connfd = accept(listenfd, (struct sockaddr *)&clientaddr, &clilen);
-				if(connfd == -1){
-					zlog_error(z_cate, "套接字accept失败! 错误码:%d", errno);
+				if(handle_accept() < 0){
 					continue;
 				}
-
-				setnonblocking(connfd);
-				int buf_size=32*1024;
-				setsockopt(connfd, SOL_SOCKET,SO_RCVBUF,(const char*)&buf_size,sizeof(int));
-				setsockopt(connfd, SOL_SOCKET,SO_SNDBUF,(const char*)&buf_size,sizeof(int));
-
-				int timeout=10000;//1秒
-				setsockopt(connfd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof(int));
-				setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(int));
-
-				const char *remote_ip = inet_ntoa(clientaddr.sin_addr);
-				int  remote_port = ntohs(clientaddr.sin_port);
-				zlog_info(z_cate, "accept connect ip=%s port=%d", remote_ip, remote_port);
-
-				conn_rec *c = create_conn(connfd, remote_ip, remote_port);
-				epoll_add_event(epfd, connfd, c);
-				add_connect(c);
 			}
 			else if(sockfd == wakeupfd && events[i].events & EPOLLIN){
-				zlog_debug(z_cate, "handle_wake_read");
+				zlog_debug(z_cate, "触发唤醒事件");
 				handle_wake_read();
 			}
 			else if(events[i].events & EPOLLIN)
 		    {
 				//收到头部4个字节或完整的数据包
 				zlog_debug(z_cate, "触发读事件");
-				for(;;) {
-					ret = packet_recv(c);
-					if( ret == RECV_COMPLATE){
-						if(has_complate_packet(c)){
-							zlog_debug(z_cate, "c->recv_queue %d",c->recv_queue->size);
-							push_packet(c->recv_queue, c);
-							c->recv_queue = buffer_queue_init(c->pool);
-						}
-					}
-					else {
-						if( ret == RECV_FAILED){
-							zlog_debug(z_cate, "接收失败 FAILED");
-							close_connect(c);
-						}
-						break;
-					}
-				}
+				handle_read(c);
 		    }
 			else if(events[i].events & EPOLLOUT)
 			{
-				ret = packet_send(c);
-				if(ret == SEND_COMPLATE){
-					buffer_queue_detroy(c->send_queue);
-					c->send_queue = NULL;
-					epoll_mod_event(epfd, c->fd, c, EPOLLIN);
-				}
-				else if(ret == SEND_FAILED){
-					close_connect(c);
-				}
+				zlog_debug(z_cate, "触发写事件");
+				handle_write(c);
 		    }
 		    else if((events[i].events & EPOLLHUP) || (events[i].events & EPOLLERR))
 		    {
@@ -161,44 +115,100 @@ void* epoll_loop(void *param)
 		    	//客户端关闭触发EPOLLIN和EPOLLRDHUP
 		    	close_connect(c);
 		    }
-			pthread_mutex_lock(&result_queue_mutex);
-			struct job_node_t   *node = result_queue.p_head;
-			while(node){
-				conn_rec *c = node->con;
-				if(c->send_queue){
-					if(c->send_queue->size > 0){
-						zlog_debug(z_cate, "发送缓冲区未发送完毕");
-						buffer_queue_write_ex(c->send_queue, node->buf_queue);
-						continue;
-					}
-				}
-
-				buffer_queue_detroy(c->send_queue);
-				c->send_queue = node->buf_queue;
-				zlog_debug(z_cate, "发送数据 len=%d", c->send_queue->size);
-				ret = packet_send(c);
-				if(ret == SEND_AGAIN){
-					zlog_debug(z_cate, "ret = SEND_AGAIN");
-					epoll_mod_event(epfd, c->fd, c, EPOLLOUT);
-				}
-				else if(ret == SEND_FAILED){
-					zlog_debug(z_cate, "ret = SEND_FAILED");
-					close_connect(c);
-				}
-				node = remove_result(node);
-			}
-			pthread_mutex_unlock(&result_queue_mutex);
+			xsend();
 		}
 	 }
 
 	 return NULL;
 }
 
+int push_complate_packet(conn_rec *c)
+{
+	push_packet(c->recv_queue, c);
+	c->recv_queue = buffer_queue_init(c->pool);
+	return 0;
+}
+
+int handle_read(conn_rec *c)
+{
+	int ret =0;
+	for(;;) {
+		ret = packet_recv(c);
+		if( ret == RECV_COMPLATE){
+			if(has_complate_packet(c)){
+				zlog_debug(z_cate, "c->recv_queue %d",c->recv_queue->size);
+				if(c->read_callback){
+					c->read_callback(c);
+				}else{
+					buffer_queue_detroy(c->recv_queue);
+					c->recv_queue = buffer_queue_init(c->pool);
+				}
+			}
+		}
+		else {
+			if( ret == RECV_FAILED){
+				zlog_debug(z_cate, "接收失败 FAILED");
+				close_connect(c);
+			}
+			return -1;
+		}
+	}
+	return 0;
+}
+
+int handle_write(conn_rec *c)
+{
+	int ret = packet_send(c);
+	if(ret == SEND_COMPLATE){
+		buffer_queue_detroy(c->send_queue);
+		c->send_queue = NULL;
+		epoll_mod_event(epfd, c->fd, c, EPOLLIN);
+	}
+	else if(ret == SEND_FAILED){
+		close_connect(c);
+		return -1;
+	}
+	return 0;
+}
+
+int handle_accept()
+{
+	int connfd;
+	struct sockaddr_in clientaddr = {0};
+	socklen_t clilen = sizeof(clientaddr);
+
+	connfd = accept(listenfd, (struct sockaddr *)&clientaddr, &clilen);
+	if(connfd == -1){
+		zlog_error(z_cate, "套接字accept失败! 错误码:%d", errno);
+		return -1;
+	}
+
+	setnonblocking(connfd);
+	int buf_size=32*1024;
+	setsockopt(connfd, SOL_SOCKET,SO_RCVBUF,(const char*)&buf_size,sizeof(int));
+	setsockopt(connfd, SOL_SOCKET,SO_SNDBUF,(const char*)&buf_size,sizeof(int));
+
+	int timeout=10000;//1秒
+	setsockopt(connfd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&timeout, sizeof(int));
+	setsockopt(connfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&timeout, sizeof(int));
+
+	const char *remote_ip = inet_ntoa(clientaddr.sin_addr);
+	int  remote_port = ntohs(clientaddr.sin_port);
+	zlog_info(z_cate, "accept connect ip=%s port=%d", remote_ip, remote_port);
+
+	conn_rec *c = create_conn(connfd, remote_ip, remote_port);
+	c->read_callback = push_complate_packet;
+	c->close_callback = s_connect;
+	epoll_add_event(epfd, connfd, c);
+	add_connect(c);
+	return 0;
+}
+
 int length_to_read(conn_rec *c)
 {
-	if (c->recv_queue->size < sizeof(int))
+	if (c->recv_queue->size < sizeof(int)){
 		return sizeof(int)-c->recv_queue->size;
-	else{
+	}else{
 		int *len = (int *)c->recv_queue->p_head->buffer;
 		if(*len >= 100000){
 			//data length is too large
@@ -212,6 +222,38 @@ int length_to_read(conn_rec *c)
 		}
 		return *len - c->recv_queue->size;
 	}
+}
+
+int xsend()
+{
+	int ret = 0;
+	pthread_mutex_lock(&result_queue_mutex);
+	struct job_node_t   *node = result_queue.p_head;
+	while(node){
+		conn_rec *c = node->con;
+		if(c->send_queue){
+			if(c->send_queue->size > 0){
+				zlog_debug(z_cate, "发送缓冲区未发送完毕");
+				buffer_queue_write_ex(c->send_queue, node->buf_queue);
+				continue;
+			}
+		}
+
+		buffer_queue_detroy(c->send_queue);
+		c->send_queue = node->buf_queue;
+		zlog_debug(z_cate, "发送数据 len=%d", c->send_queue->size);
+		ret = packet_send(c);
+		if(ret == SEND_AGAIN){
+			zlog_debug(z_cate, "ret = SEND_AGAIN");
+			epoll_mod_event(epfd, c->fd, c, EPOLLOUT);
+		}
+		else if(ret == SEND_FAILED){
+			zlog_debug(z_cate, "ret = SEND_FAILED");
+			close_connect(c);
+		}
+		node = remove_result(node);
+	}
+	pthread_mutex_unlock(&result_queue_mutex);
 }
 
 int has_complate_packet(conn_rec *c)
@@ -340,7 +382,14 @@ int sock_send(conn_rec *c, char *sendbuf, int sendlen, int* realsendlen)
 	return atomic_read(&c->aborted);
 }
 
-void close_connect(conn_rec *c)
+int close_connect(conn_rec *c)
+{
+	if(c->close_callback){
+		return c->close_callback(c);
+	}
+}
+
+int s_connect(conn_rec *c)
 {
 	zlog_debug(z_cate, "关闭套接字");
 	epoll_del_event(epfd, c->fd, c, EPOLLIN);

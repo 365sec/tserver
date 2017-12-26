@@ -11,3 +11,4 @@ conn_rec *conn_last= NULL;
 pthread_mutex_t conn_list_mutex;
 int wakeupfd;
 zlog_category_t *z_cate;
+int c_fd = 0;

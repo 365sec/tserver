@@ -20,7 +20,8 @@ typedef struct conn_rec_t{
 	long id;
 
 	/*callback of packet handle*/
-	int (*handle_read)(char*);
+	int (*read_callback)(struct conn_rec_t *c);
+	int (*close_callback)(struct conn_rec_t *c);
 
 	/*buf of recive*/
 	struct buffer_queue_t *recv_queue;

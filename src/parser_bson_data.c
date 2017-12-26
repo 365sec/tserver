@@ -70,13 +70,13 @@ struct command_req * parser_bson_connect(bson_iter_t *piter){
 }
 
 
-void parse_bson(uint8_t * my_data, size_t my_data_len){
+struct command_req *parse_bson(uint8_t * my_data, size_t my_data_len){
 	char* str;
 	bson_t *b;
     size_t err_offset;
 	bson_t bson;
 	bson_iter_t iter;
-
+	struct command_req *req = NULL;
 	if (bson_init_static (&bson, my_data, my_data_len))
 	 {
 	    if (bson_validate (&bson, BSON_VALIDATE_NONE, &err_offset))
@@ -98,7 +98,7 @@ void parse_bson(uint8_t * my_data, size_t my_data_len){
 		            bson_iter_init (&document_iter, &b_document);
 		            struct _bson_parser *bp;
 		            if((bp=apr_hash_get( bson_parse_hash,key,APR_HASH_KEY_STRING)  )!= NULL){
-		            	bp->pfParse(&document_iter);
+		            	req = bp->pfParse(&document_iter);
 		            }
 		            bson_destroy (&b_document);
 		       }
@@ -110,6 +110,7 @@ void parse_bson(uint8_t * my_data, size_t my_data_len){
 	    }
 	    bson_destroy (&bson);
 	 }
+	return req;
 }
 
 
@@ -136,7 +137,10 @@ bson_t *  encode_command_rep_to_bson (struct command_rep * rep){
 	  }
 	  if(error){
 		  bson_destroy (b_object);
+		  b_object = NULL;
 	  }
+
+	  return b_object;
 
 	  /**
 	   *BSON_APPEND_UTF8

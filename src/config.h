@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
- #include <sys/epoll.h>
+#include <sys/epoll.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -25,7 +25,8 @@ struct conn_rec_t;
 #define EPOLL_LOOP_THREAD_COUNT  1   //IO线程数目
 #define WORK_THREAD_COUNT   2 //工作线程数目
 #define DATA_BUFSIZE 4096
-
+#define ROOT_SERVER_IP "127.0.0.1"
+#define ROOT_SERVER_PORT 6789
 #define MSGHEADER_LENGTH sizeof(int)   //头部的长度所占字节数
 
 #define SEND_FAILED 0
@@ -40,6 +41,7 @@ extern zlog_category_t *z_cate;
 extern atomic server_stop;
 extern int epfd;
 extern int listenfd;
+extern int c_fd;
 extern apr_pool_t *server_rec;
 extern struct conn_rec_t *conn_head;
 extern struct conn_rec_t *conn_last;

@@ -10,7 +10,7 @@ struct command_req*  command_req_new(command_type type){
 }
 
 
-void command_free(struct command_req** req){
+void command_req_free(struct command_req** req){
 	struct command_req* p = *req;
 	if(p){
 		free(p);

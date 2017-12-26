@@ -16,7 +16,8 @@ struct command_rep* handler_command(struct command_req* req){
 	switch (req->type){
 
 	case COMMAND_TYPE_CONNECT:
-		req = handler_command_connect(req);
+		rep = handler_command_connect(req);
+		break;
 	default :
 		return NULL;
 	}

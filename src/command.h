@@ -1,3 +1,5 @@
+#ifndef _COMMAND_H
+#define _COMMAND_H
 /*
 将网络接收的数据，转换为结构化的数据
 */
@@ -44,3 +46,5 @@ void command_req_free(struct command_req** req);
 
 struct command_rep * command_rep_new(command_type type);
 void command_rep_free(struct command_rep** req);
+
+#endif
