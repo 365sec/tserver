@@ -29,6 +29,7 @@ int initlog()
 	sprintf(path, "%s/zlog.conf", getcwd(buf, sizeof(buf)));
 	int rc = zlog_init(path);
 	printf("%s\n", path);
+
 	if (rc) {
 		printf("日志模块初始化失败.\n");
 		return -1;
@@ -57,8 +58,7 @@ int main(){
 		 return 0;
 	 }
 	 register_signal();
-	 atomic_init(&server_stop);
-
+	 zlog_error(z_cate, "11111!");
 	 apr_pool_initialize();
 	 if(apr_pool_create(&server_rec, NULL) != APR_SUCCESS){
 		 zlog_error(z_cate, "内存池初始化失败!");
@@ -144,7 +144,7 @@ void accept_command()
 			if (-1 == c_fd)
 			{
 				zlog_error(z_cate, "创建客户端套接字失败!");
-				return 0;
+				return;
 			}
 		}
 		ret = connect(c_fd, (struct sockaddr*)&c_addr,sizeof(c_addr));
@@ -154,37 +154,31 @@ void accept_command()
 			continue;
 		}
 		setnonblocking(c_fd);
-		 conn_rec *s_con = create_conn(c_fd, ROOT_SERVER_IP, ROOT_SERVER_PORT);
-		 s_con->read_callback = NULL;
-		 s_con->close_callback = NULL;
-		 epoll_add_event(c_poll, c_fd, s_con);
-		 struct epoll_event events[100];
-		 for(;;){
-			 int n = epoll_wait(c_poll, events, 100, 300);
-			 for (i = 0; i < n; i++) {
-				 conn_rec *c = (conn_rec *)events[i].data.ptr;
-				 if(events[i].events & EPOLLIN){
-					 handle_read(c);
-				 }
-				 else if(events[i].events & EPOLLOUT){
-					 handle_write(c);
-				 }
-			 }
-			 if(s_con && atomic_read(&s_con->aborted) != 0){
-				 epoll_del_event(c_poll, s_con->fd, s_con, EPOLLIN);
-				 close(s_con->fd);
-				 release_connect(s_con);
-				 s_con = NULL;
-				 c_fd = 0;
-				 break;
-			 }else{
+		conn_rec *s_con = create_conn(c_fd, ROOT_SERVER_IP, ROOT_SERVER_PORT);
+		s_con->read_callback = NULL;
+		s_con->close_callback = NULL;
+		epoll_add_event(c_poll, c_fd, s_con);
+		struct epoll_event events[100];
+		for(;;){
+			int n = epoll_wait(c_poll, events, 100, 300);
+			for (i = 0; i < n; i++) {
+				conn_rec *c = (conn_rec *)events[i].data.ptr;
+				if(events[i].events & EPOLLIN){
+				 handle_read(c);
+				}
+				else if(events[i].events & EPOLLOUT){
+					handle_write(c);
+				}
+			}
+			if(s_con && atomic_read(&s_con->aborted) != 0){
+				break;
+			}else{
 				 if(s_con->send_queue->size > 0){
 					int ret = packet_send(s_con);
 					if(ret == SEND_AGAIN){
 						epoll_mod_event(c_poll, s_con->fd, s_con, EPOLLOUT);
 					}
 					else if(ret == SEND_FAILED){
-						close_connect(s_con);
 						break;
 					}
 					else if(ret == SEND_COMPLATE){
@@ -192,7 +186,12 @@ void accept_command()
 						s_con->recv_queue = buffer_queue_init(s_con->pool);
 					}
 				 }
-			 }
-		 }
+			}
+		}
+		epoll_del_event(c_poll, s_con->fd, s_con, EPOLLIN);
+		close(s_con->fd);
+		release_connect(s_con);
+		s_con = NULL;
+		c_fd = 0;
 	}
 }

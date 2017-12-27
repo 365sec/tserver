@@ -38,7 +38,7 @@ struct conn_rec_t;
 #define RECV_COMPLATE 2
 
 extern zlog_category_t *z_cate;
-extern atomic server_stop;
+extern int server_stop;
 extern int epfd;
 extern int listenfd;
 extern int c_fd;

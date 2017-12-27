@@ -147,12 +147,13 @@ struct buffer_queue_t * do_packet(struct job_node_t *job)
 {
 	int size = job->buf_queue->size;
 	char *buf = apr_pcalloc(job->pool, size+1);
+	struct context_rec *ctx = job->con->context;
 
 	buffer_queue_read(job->buf_queue, buf, size);
 
 	struct command_req *req= parse_bson(buf, size);
 	if(req){
-		struct command_rep *rep = handler_command(req);
+		struct command_rep *rep = handler_command(req, ctx);
 		if(rep){
 			bson_t * bson_result = encode_command_rep_to_bson(rep);
 			if(bson_result){
@@ -174,12 +175,12 @@ void *work_thread(void *p)
 {
 	zlog_info(z_cate, "工作线程已启动 tid=%lu!", pthread_self());
 	struct job_node_t *first = NULL;
-	while(!atomic_read(&server_stop)){
+	while(!server_stop){
 		pthread_mutex_lock(&packet_queue_mutex);
 		while(NULL == (first = pop_front_packet())){
 			pthread_cond_wait(&packet_queue_cond, &packet_queue_mutex);
 			zlog_info(z_cate, "pthread_cond_wait!");
-			if(atomic_read(&server_stop)){
+			if(server_stop){
 				zlog_info(z_cate, "server_stop!");
 				return 0;
 			}

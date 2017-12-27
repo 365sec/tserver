@@ -9,8 +9,6 @@ conn_rec *create_conn(int fd, const char *remote_ip, int remote_port)
 		return NULL;
 	}
 	conn_rec *c = (conn_rec *)apr_pcalloc(trans, sizeof(conn_rec));
-	c->id = 0;
-	//c->aborted = 0;
 	c->fd = fd;
 	c->pool = trans;
 	if(remote_ip){
@@ -25,6 +23,13 @@ conn_rec *create_conn(int fd, const char *remote_ip, int remote_port)
 	atomic_init(&c->aborted);
 	pthread_mutex_init(&c->ref_mutex, NULL);
 
+	context_rec *context = (context_rec *)apr_pcalloc(trans, sizeof(context_rec));
+	context->id = 0;
+	context->pool = trans;
+	context->type = 0;
+	context->version = NULL;
+	context->version_id = 0;
+	c->context = context;
 	return c;
 }
 

@@ -5,6 +5,19 @@
 #include "config.h"
 #include "atomic.h"
 
+typedef struct context_rec_t{
+	/* pool of connect_rec */
+	apr_pool_t *pool;
+	/*ID of this connection; unique at any point of time*/
+	long id;
+	/* client version */
+	char *version;
+	/* client version id */
+	int version_id;
+	/* client type, manage or agent */
+	int type;
+}context_rec;
+
 typedef struct conn_rec_t{
 	apr_pool_t *pool;
 
@@ -15,9 +28,6 @@ typedef struct conn_rec_t{
 
 	/*are we still talking*/
 	atomic aborted;
-
-	/*ID of this connection; unique at any point of time*/
-	long id;
 
 	/*callback of packet handle*/
 	int (*read_callback)(struct conn_rec_t *c);
@@ -33,6 +43,8 @@ typedef struct conn_rec_t{
 	atomic heart_count;
 	int ref;
 	pthread_mutex_t ref_mutex;
+	context_rec *context;
+
 	struct conn_rec_t *before;
 	struct conn_rec_t *next;
 }conn_rec;

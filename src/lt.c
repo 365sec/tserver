@@ -73,9 +73,10 @@ void* epoll_loop(void *param)
 	int sockfd;
 	int ret;
 	struct epoll_event events[MAX_EPOLL_EVENT_COUNT];
-
-	zlog_info(z_cate, "IO线程已启动 tid=%lu!", pthread_self());
-	while(!atomic_read(&server_stop))
+	//for(i = 0; i< 100000;i++){
+		zlog_info(z_cate, "IO线程已启动 tid=%lu!", pthread_self());
+	//}
+	while(!server_stop)
 	{
 		nfds = epoll_wait(epfd, events, MAX_EPOLL_EVENT_COUNT, -1);
 		for(i = 0; i < nfds; i++)

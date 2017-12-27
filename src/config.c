@@ -4,7 +4,7 @@
 
 int epfd;
 int listenfd;
-atomic server_stop;
+int server_stop;
 apr_pool_t *server_rec;
 conn_rec *conn_head = NULL;
 conn_rec *conn_last= NULL;
