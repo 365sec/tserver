@@ -1,4 +1,4 @@
-#include "command.h"
-#include "connect.h"
+#include"command.h"
 
-struct command_rep* handler_command(struct command_req* req, context_rec *ctx);
+
+struct command_rec_t* handler_command(struct command_rec_t* req);

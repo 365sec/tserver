@@ -30,12 +30,12 @@ void parser_bson_init(){
 	}
 }
 
-struct command_req * parser_bson_connect(bson_iter_t *piter){
+struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
    bool error = false ;
    bson_subtype_t    subtype;
    uint32_t uuidlen;
    const uint8_t *uuidbin;
-   struct command_req*  req =  command_req_new(COMMAND_TYPE_CONNECT);
+   struct command_rec_t*  req =  command_rec_new(COMMAND_TYPE_CONNECT);
 
    while (bson_iter_next (piter))
    {
@@ -70,13 +70,13 @@ struct command_req * parser_bson_connect(bson_iter_t *piter){
 }
 
 
-struct command_req *parse_bson(uint8_t * my_data, size_t my_data_len){
+struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	char* str;
 	bson_t *b;
     size_t err_offset;
 	bson_t bson;
 	bson_iter_t iter;
-	struct command_req *req = NULL;
+	struct  command_rec_t *req = NULL;
 	if (bson_init_static (&bson, my_data, my_data_len))
 	 {
 	    if (bson_validate (&bson, BSON_VALIDATE_NONE, &err_offset))
@@ -114,17 +114,17 @@ struct command_req *parse_bson(uint8_t * my_data, size_t my_data_len){
 }
 
 
-bson_t *  encode_command_rep_to_bson (struct command_rep * rep){
+bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	  bson_t child;
 	  bson_t * b_object = bson_new();
 	  bool error = FALSE;
 	  switch (rep->type)
 	  {
-	    case  COMMAND_TYPE_PING:
+	    /*case  COMMAND_TYPE_PING:
 	      bson_append_document_begin (b_object, "ping", -1, &child);
 	      BSON_APPEND_INT64 (&child, "timestamp", time(NULL));
 	      bson_append_document_end (b_object, &child);
-	      break;
+	      break;*/
 	    case  COMMAND_TYPE_OK:
 	      bson_append_document_begin (b_object, "ok", -1, &child);
 	      BSON_APPEND_UTF8(&child, "id", "ii");
