@@ -7,3 +7,7 @@ libbson
 
 zlog 1.2.12
 地址 https://github.com/HardySimpson/zlog/releases/tag/1.2.12
+
+
+
+apt-get install uuid-dev

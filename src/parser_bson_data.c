@@ -53,6 +53,14 @@ struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
 		     printf("version = %s\n",version);
 		   }
 	   }else if(strcmp(key,"sensor_id") == 0) {
+		   if (BSON_ITER_HOLDS_UTF8(piter))
+		   {
+		 	  const char *sensor_id = bson_iter_utf8 (piter, NULL);
+		 	  req->data.connect.sensor_id = strdup(sensor_id);
+		 	  printf("sensor_id = %s\n",sensor_id);
+		   }
+
+		   /*
 		 if (BSON_ITER_HOLDS_BINARY (piter))
 		 {
 		     bson_iter_binary (piter, &subtype, &uuidlen, &uuidbin);
@@ -60,7 +68,7 @@ struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
 		     {
 		        printf("uuid is binary");
 		     }
-		  }
+		  }*/
 
 	   }else if(strcmp(key,"id") == 0) {
 
@@ -127,7 +135,10 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	      break;*/
 	    case  COMMAND_TYPE_OK:
 	      bson_append_document_begin (b_object, "ok", -1, &child);
-	      BSON_APPEND_UTF8(&child, "id", "ii");
+	      if(rep->data.ok.info){
+	    	printf("ok_info :%s",rep->data.ok.info);
+	        BSON_APPEND_UTF8(&child, "id", rep->data.ok.info);
+	      }
 	      bson_append_document_end (b_object, &child);
 	      break;
 	    default:

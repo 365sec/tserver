@@ -151,9 +151,9 @@ struct buffer_queue_t * do_packet(struct job_node_t *job)
 
 	buffer_queue_read(job->buf_queue, buf, size);
 
-	struct command_req *req= parse_bson(buf, size);
+	struct command_rec_t *req= parse_bson(buf, size);
 	if(req){
-		struct command_rep *rep = handler_command(req, ctx);
+		struct command_rec_t *rep = handler_command(req, ctx);
 		if(rep){
 			bson_t * bson_result = encode_command_rep_to_bson(rep);
 			if(bson_result){
@@ -162,8 +162,8 @@ struct buffer_queue_t * do_packet(struct job_node_t *job)
 				struct buffer_queue_t *result_buf = buffer_queue_init(job->con->pool);
 				buffer_queue_write(result_buf, data, towrite);
 				bson_destroy(bson_result);
-				command_req_free(&req);
-				command_rep_free(&rep);
+				command_rec_free(&req);
+				command_rec_free(&rep);
 				return result_buf;
 			}
 		}
