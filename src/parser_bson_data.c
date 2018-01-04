@@ -10,6 +10,7 @@ static struct _bson_parser
   struct command_req * (*pfParse)(bson_iter_t *);
 }bson_parser[]={
   {"connect", parser_bson_connect},
+  {"exc_cmd_ok",parser_bson_exc_cmd_ok}
 };
 
 static apr_hash_t* bson_parse_hash = NULL;
@@ -77,6 +78,27 @@ struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
    return req;
 }
 
+struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
+	   bool error = false ;
+	   bson_subtype_t    subtype;
+	   uint32_t uuidlen;
+	   const uint8_t *uuidbin;
+	   struct command_rec_t*  req =  command_rec_new(COMMAND_TYPE_CMD_OK);
+	   while (bson_iter_next (piter))
+	   {
+		  const char *key = bson_iter_key(piter);
+		  if(strcmp(key,"info") == 0) {
+			   if (BSON_ITER_HOLDS_UTF8(piter))
+			   {
+			     const char *info = bson_iter_utf8 (piter, NULL);
+			     printf("info = %s\n",info);
+			     req->data.exc_cmd_ok.info = strdup(info);
+			   }
+		   }
+	   }
+	   return req;
+}
+
 
 struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	char* str;
@@ -141,6 +163,14 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	      }
 	      bson_append_document_end (b_object, &child);
 	      break;
+	    case COMMAND_TYPE_CMD:
+	       bson_append_document_begin (b_object, "exc_cmd", -1, &child);
+	   	   if(rep->data.exc_cmd.cmdline){
+	   	    	printf("cmdline :%s",rep->data.exc_cmd.cmdline);
+	   	        BSON_APPEND_UTF8(&child, "cmdline", rep->data.ok.info);
+	   	    }
+	   	    bson_append_document_end (b_object, &child);
+	   	    break;
 	    default:
 	        printf ("BSON for type '%d' not implemmented", rep->type);
 	        error = TRUE;
