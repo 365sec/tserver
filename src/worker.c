@@ -13,7 +13,7 @@ struct job_queue result_queue;
 pthread_mutex_t result_queue_mutex;
 apr_pool_t *queue_pool;
 
-void init_global_queue()
+void init_work_thread()
 {
 	packet_queue.p_head = packet_queue.p_last = NULL;
 	packet_queue.max_size = 0;

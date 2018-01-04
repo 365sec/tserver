@@ -40,15 +40,15 @@ conn_rec *remove_connect(conn_rec *c)
 	if(c->before){
 		c->before->next = c->next;
 	}else{
-		conn_head = c->next;
+		conn_list.conn_head = c->next;
 	}
 	if(c->next) {
 		c->next->before = c->before;
 	}
 	else{
-		conn_last = c->before;
+		conn_list.conn_last = c->before;
 	}
-
+	conn_list.size--;
 	deref(c);
 	return ret;
 }
@@ -90,15 +90,16 @@ void add_connect(conn_rec *c)
 {
 	addref(c);
 	pthread_mutex_lock(&conn_list_mutex);
-	if(!conn_last){
-		conn_head = conn_last = c;
+	if(!conn_list.conn_last){
+		conn_list.conn_head = conn_list.conn_last = c;
 		c->before = c->next = NULL;
 	}else{
-		conn_last->next = c;
-		c->before = conn_last;
+		conn_list.conn_last->next = c;
+		c->before = conn_list.conn_last;
 		c->next= NULL;
-		conn_last = c;
+		conn_list.conn_last = c;
 	}
+	conn_list.size++;
 	pthread_mutex_unlock(&conn_list_mutex);
 }
 

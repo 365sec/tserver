@@ -5,16 +5,23 @@
 
 
 struct command_rec_t* command_rec_new(command_type   type){
-	struct command_rec_t* req = malloc(sizeof(struct command_rec_t));
-	 req->type = type;
-	 return req;
+
+	apr_pool_t *pool = NULL;
+	if(apr_pool_create(&pool, server_rec) != APR_SUCCESS){
+		zlog_error(z_cate, "command_rec创建失败!");
+		return NULL;
+	}
+	struct command_rec_t* rec = apr_palloc(sizeof(struct command_rec_t));
+	rec->type = type;
+	rec->pool = pool;
+	return rec;
 
 }
 
 void command_rec_free(struct command_rec_t ** rec){
 	struct command_rec_t* p = *rec;
 	if(p){
-		free(p);
+		apr_pool_destroy(p->pool);
 		p = NULL;
 	}
 

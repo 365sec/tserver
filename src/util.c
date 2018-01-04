@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include <time.h>
 #include"util.h"
 
 
@@ -30,4 +31,14 @@ char * uuid_create_hex_string (){
 
 	uuid_unparse_lower (id, hex);
 	return hex;
+}
+
+time_t t_time()
+{
+	return time(NULL);
+}
+
+void t_sleep_loop(int second)
+{
+	sleep(second);
 }

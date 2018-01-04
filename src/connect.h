@@ -49,6 +49,12 @@ typedef struct conn_rec_t{
 	struct conn_rec_t *next;
 }conn_rec;
 
+typedef struct conn_rec_list_t
+{
+	conn_rec *conn_head;
+	conn_rec *conn_last;
+	int size;
+}conn_rec_list;
 
 conn_rec *create_conn(int fd, const char *remote_ip, int remote_port);
 /*将连接对象从链表中移除*/

@@ -11,7 +11,7 @@ int create_eventfd()
 	  int evtfd = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
 	  if (evtfd < 0)
 	  {
-		  zlog_error(z_cate, "Failed in eventfd\n");
+		zlog_error(z_cate, "Failed in eventfd\n");
 		return -1;
 	  }
 	  return evtfd;
@@ -28,11 +28,11 @@ int create_eventfd()
  void handle_wake_read()
  {
 	 uint64_t one = 1;
-	  ssize_t n = read(wakeupfd, &one, sizeof (one));
-	  if (n != sizeof(one))
-	  {
-		  zlog_error(z_cate, "handle_wake_read reads %d bytes instead of 8\n");
-	  }
+	 ssize_t n = read(wakeupfd, &one, sizeof (one));
+	 if (n != sizeof(one))
+	 {
+		zlog_error(z_cate, "handle_wake_read reads %d bytes instead of 8\n");
+	 }
  }
 
 int epoll_add_event(int ep, int fd, void* conn){
