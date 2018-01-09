@@ -13,6 +13,7 @@ int handle_read(conn_rec *c);
 int handle_write(conn_rec *c);
 int handle_accept();
 int xsend();
+int is_heart_beat();
 int epoll_add_event(int ep, int fd, void* context);
 int packet_recv(conn_rec *c);
 int sock_recv(conn_rec *c, char *recvbuf, int recvlen, int *realrecvlen);

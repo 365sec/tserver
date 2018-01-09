@@ -1,6 +1,6 @@
-#include<apr_hash.h>
-#include<time.h>
-
+#include <apr_hash.h>
+#include <time.h>
+#include "config.h"
 #include "parser_bson_data.h"
 
 
@@ -46,19 +46,22 @@ struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
 		    {
 		     int type= bson_iter_int32 (piter);
 		     printf("type= %d \n",type);
+		     req->data.connect.type = type;
 		    }
 	   }else if(strcmp(key,"version") == 0) {
 		   if (BSON_ITER_HOLDS_UTF8(piter))
 		   {
 		     const char *version = bson_iter_utf8 (piter, NULL);
 		     printf("version = %s\n",version);
+
+		     req->data.connect.version = apr_pstrdup(req->pool, version);
 		   }
 	   }else if(strcmp(key,"sensor_id") == 0) {
 		   if (BSON_ITER_HOLDS_UTF8(piter))
 		   {
 		 	  const char *sensor_id = bson_iter_utf8 (piter, NULL);
-		 	  req->data.connect.sensor_id = strdup(sensor_id);
-		 	  printf("sensor_id = %s\n",sensor_id);
+		 	  req->data.connect.id = apr_pstrdup(req->pool, sensor_id);
+		 	  printf("id = %s\n",sensor_id);
 		   }
 
 		   /*
@@ -91,14 +94,12 @@ struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
 			   if (BSON_ITER_HOLDS_UTF8(piter))
 			   {
 			     const char *info = bson_iter_utf8 (piter, NULL);
-			     printf("info = %s\n",info);
-			     req->data.exc_cmd_ok.info = strdup(info);
+			     req->data.exc_cmd_ok.info = apr_pstrdup(req->pool, info);
 			   }
 		   }
 	   }
 	   return req;
 }
-
 
 struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	char* str;
@@ -143,18 +144,18 @@ struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	return req;
 }
 
-
 bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	  bson_t child;
+	  bson_t child_header;
 	  bson_t * b_object = bson_new();
 	  bool error = FALSE;
+      bson_append_document_begin (b_object, "header", -1, &child_header);
+	  BSON_APPEND_UTF8(&child_header, "dest", rep->dest ? rep->dest : "" );
+	  BSON_APPEND_UTF8(&child_header, "src", rep->src ? rep->src : "" );
+	  BSON_APPEND_UTF8(&child_header, "uuid", rep->uuid ? rep->uuid : "" );
+	  bson_append_document_end (b_object, &child_header);
 	  switch (rep->type)
 	  {
-	    /*case  COMMAND_TYPE_PING:
-	      bson_append_document_begin (b_object, "ping", -1, &child);
-	      BSON_APPEND_INT64 (&child, "timestamp", time(NULL));
-	      bson_append_document_end (b_object, &child);
-	      break;*/
 	    case  COMMAND_TYPE_OK:
 	      bson_append_document_begin (b_object, "ok", -1, &child);
 	      if(rep->data.ok.info){
@@ -164,15 +165,16 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	      bson_append_document_end (b_object, &child);
 	      break;
 	    case COMMAND_TYPE_CMD:
+
 	       bson_append_document_begin (b_object, "exc_cmd", -1, &child);
 	   	   if(rep->data.exc_cmd.cmdline){
-	   	    	printf("cmdline :%s",rep->data.exc_cmd.cmdline);
-	   	        BSON_APPEND_UTF8(&child, "cmdline", rep->data.ok.info);
+	   		   	zlog_info(z_cate,"cmdline :%s",rep->data.exc_cmd.cmdline);
+	   	        BSON_APPEND_UTF8(&child, "cmdline", rep->data.exc_cmd.cmdline);
 	   	    }
 	   	    bson_append_document_end (b_object, &child);
 	   	    break;
 	    default:
-	        printf ("BSON for type '%d' not implemmented", rep->type);
+	    	zlog_error(z_cate,"BSON for type '%d' not implemmented", rep->type);
 	        error = TRUE;
 	        break;
 	  }

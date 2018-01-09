@@ -38,7 +38,7 @@ int create_eventfd()
 int epoll_add_event(int ep, int fd, void* conn){
 	addref((conn_rec *)conn);
 	struct epoll_event ee;
-	ee.events = EPOLLIN;
+	ee.events = EPOLLIN|EPOLLRDHUP|EPOLLERR;
 	ee.data.ptr = conn;
 	if(epoll_ctl(ep, EPOLL_CTL_ADD, fd, &ee) == -1){
 		return -1;
@@ -73,9 +73,8 @@ void* epoll_loop(void *param)
 	int sockfd;
 	int ret;
 	struct epoll_event events[MAX_EPOLL_EVENT_COUNT];
-	//for(i = 0; i< 100000;i++){
-		zlog_info(z_cate, "IO线程已启动 tid=%lu!", pthread_self());
-	//}
+
+	zlog_info(z_cate, "IO线程已启动 tid=%lu!", pthread_self());
 	while(!server_stop)
 	{
 		nfds = epoll_wait(epfd, events, MAX_EPOLL_EVENT_COUNT, -1);
@@ -98,6 +97,7 @@ void* epoll_loop(void *param)
 		    {
 				//收到头部4个字节或完整的数据包
 				zlog_debug(z_cate, "触发读事件");
+				heart_handler(c);
 				handle_read(c);
 		    }
 			else if(events[i].events & EPOLLOUT)
@@ -107,12 +107,14 @@ void* epoll_loop(void *param)
 		    }
 		    else if((events[i].events & EPOLLHUP) || (events[i].events & EPOLLERR))
 		    {
+		    	zlog_debug(z_cate, "触发EPOLLHUP EPOLLERR 事件");
 		    	//服务端出错触发
 		    	atomic_set(&c->aborted, 1);
 		    	close_connect(c);
 		    }
 		    else if(events[i].events & EPOLLRDHUP)
 		    {
+		    	zlog_debug(z_cate, "触发EPOLLRDHUP 事件");
 		    	//客户端关闭触发EPOLLIN和EPOLLRDHUP
 		    	close_connect(c);
 		    }
@@ -138,11 +140,12 @@ int handle_read(conn_rec *c)
 		if( ret == RECV_COMPLATE){
 			if(has_complate_packet(c)){
 				zlog_debug(z_cate, "c->recv_queue %d",c->recv_queue->size);
-				if(c->read_callback){
-					c->read_callback(c);
-				}else{
+				if(is_heart_beat(c) || c->read_callback == NULL){
 					buffer_queue_detroy(c->recv_queue);
 					c->recv_queue = buffer_queue_init(c->pool);
+				}
+				else{
+					c->read_callback(c);
 				}
 			}
 		}
@@ -163,7 +166,7 @@ int handle_write(conn_rec *c)
 	if(ret == SEND_COMPLATE){
 		buffer_queue_detroy(c->send_queue);
 		c->send_queue = NULL;
-		epoll_mod_event(epfd, c->fd, c, EPOLLIN);
+		epoll_mod_event(epfd, c->fd, c, EPOLLIN|EPOLLRDHUP|EPOLLERR);
 	}
 	else if(ret == SEND_FAILED){
 		close_connect(c);
@@ -211,9 +214,10 @@ int length_to_read(conn_rec *c)
 		return sizeof(int)-c->recv_queue->size;
 	}else{
 		int *len = (int *)c->recv_queue->p_head->buffer;
+
 		if(*len >= 100000){
 			//data length is too large
-			zlog_error(z_cate, "data length is too large");
+			zlog_error(z_cate, "data length is too large %d", *len);
 			atomic_set(&c->aborted, 1);
 			return -1;
 		}else if(*len <= 0){
@@ -236,6 +240,7 @@ int xsend()
 			if(c->send_queue->size > 0){
 				zlog_debug(z_cate, "发送缓冲区未发送完毕");
 				buffer_queue_write_ex(c->send_queue, node->buf_queue);
+				node = remove_result(node);
 				continue;
 			}
 		}
@@ -263,6 +268,15 @@ int has_complate_packet(conn_rec *c)
 		return 0;
 	int *len = (int *)(c->recv_queue->p_head->buffer);
 	return c->recv_queue->size >= *len;
+}
+
+int is_heart_beat(conn_rec *c)
+{
+	int *len = (int *)(c->recv_queue->p_head->buffer);
+	if(*len == 4){
+		return 1;
+	}
+	return 0;
 }
 
 int packet_recv(conn_rec *c)

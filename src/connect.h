@@ -9,16 +9,17 @@ typedef struct context_rec_t{
 	/* pool of connect_rec */
 	apr_pool_t *pool;
 	/*ID of this connection; unique at any point of time*/
-	long id;
-	/* client version */
-	char *version;
-	/* client version id */
-	int version_id;
+	char *id;
 	/* client type, manage or agent */
 	int type;
+	/* client version */
+	char *version;
+	/* lock of the context*/
+	pthread_mutex_t context_mutex;
 }context_rec;
 
 typedef struct conn_rec_t{
+	/*pool of connect_rec*/
 	apr_pool_t *pool;
 
 	/* client ip address*/
@@ -29,8 +30,9 @@ typedef struct conn_rec_t{
 	/*are we still talking*/
 	atomic aborted;
 
-	/*callback of packet handle*/
+	/*read callback of packet handle*/
 	int (*read_callback)(struct conn_rec_t *c);
+	/*close callback of packet handle*/
 	int (*close_callback)(struct conn_rec_t *c);
 
 	/*buf of recive*/
@@ -40,11 +42,14 @@ typedef struct conn_rec_t{
 
 	/*fd*/
 	int fd;
+	/*heartbeat count*/
 	atomic heart_count;
+	/*ref count*/
 	int ref;
 	pthread_mutex_t ref_mutex;
+	/*the context which is pass the handle_command*/
 	context_rec *context;
-
+	/*use for the conn_rec list*/
 	struct conn_rec_t *before;
 	struct conn_rec_t *next;
 }conn_rec;

@@ -23,9 +23,12 @@ void check_handler()
 	pthread_mutex_lock(&conn_list_mutex);
     conn_rec *c = conn_list.conn_head;
     while(NULL != c  && !server_stop){
-        if(atomic_read(&c->heart_count) >= 1000000){
+        if(atomic_read(&c->heart_count) >= 5){
         	zlog_info(z_cate, "客户端IP:  %s 已经掉线!", c->remote_ip);
-            close(c->fd);
+        	zlog_debug(z_cate, "关闭套接字");
+        	epoll_del_event(epfd, c->fd, c, EPOLLIN);
+        	close(c->fd);
+        	deref(c);
             c = remove_connect(c);
             continue;
         }

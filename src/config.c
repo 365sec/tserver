@@ -1,3 +1,4 @@
+
 #include "config.h"
 #include "connect.h"
 #include "atomic.h"
@@ -18,3 +19,4 @@ char *db_dbname = "cmd_system";
 char *db_schema = NULL;
 char *db_socket = NULL;
 int db_port = 3306;
+

@@ -5,11 +5,9 @@
 #include "heart.h"
 #include "worker.h"
 #include "apr_strings.h"
-#include "tdb.h"
+#include "db_process.h"
 
 void accept_command();
-void *command_thread(void *p);
-int process_command(DB_CON 	con);
 
 int initlog()
 {
@@ -117,9 +115,9 @@ int main(){
 	    }
 	}
 
-	ret = pthread_create(&tid, NULL, command_thread, NULL);
+	ret = pthread_create(&tid, NULL, db_read_thread, NULL);
 	if(ret != 0){
-	    zlog_error(z_cate, "创建指令线程失败! 错误码: %d", ret);
+	    zlog_error(z_cate, "创建指令读取线程失败! 错误码: %d", ret);
 	    return -1;
 	}
 
@@ -127,53 +125,6 @@ int main(){
 
 	close(listenfd);
 	zlog_fini();
-}
-
-void *command_thread(void *p)
-{
-	long int sec1, sec2, nextcheck;
-	int	cmd_num = 0, sleeptime;
-	DB_CON 	con = CreateDBConnect();
-
-	sec1 = t_time();
-	sec2 = sec1;
-	zlog_info(z_cate, "指令线程已启动 tid=%lu!", pthread_self());
-
-	sleeptime = COMMANDTHREAD_TIMEOUT - sec1 % COMMANDTHREAD_TIMEOUT;
-	DBconnect(con, T_DB_CONNECT_NORMAL);
-
-	for (;;)
-	{
-		t_sleep_loop(sleeptime);
-
-		sec1 = t_time();
-		cmd_num = process_command(con);
-		sec2 = t_time();
-
-		nextcheck = sec1 - sec1 % COMMANDTHREAD_TIMEOUT + COMMANDTHREAD_TIMEOUT;
-		if (0 > (sleeptime = nextcheck - sec2))
-			sleeptime = 0;
-	}
-
-
-}
-
-int process_command(DB_CON 	con)
-{
-	DB_RESULT	result;
-	DB_ROW		row;
-	result = DBselect(con, "select command_id, command_type, command_expression, src_id, dest_id from command");
-	while (NULL != (row = DBfetch(result)))
-	{
-		printf("command_id:%s, command_type:%s, command_expression:%s src_id:%s, dest_id:%s\n", row[0], row[1], row[2], row[3], row[4]);
-		struct command_rec_t *r = command_rec_new();
-		r->type = command_type::COMMAND_TYPE_CMD;
-		r->src = apr_pstrdup(r->pool, row[3]);
-		r->dest = apr_pstrdup(r->pool, row[4]);
-		r->uuid = apr_pstrdup(r->pool,row[0]);
-		r->exc_cmd.cmdline = apr_pstrdup(r->pool,row[2]);
-	}
-	DBfree_result(result);
 }
 
 void accept_command()

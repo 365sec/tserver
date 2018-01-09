@@ -24,12 +24,12 @@ conn_rec *create_conn(int fd, const char *remote_ip, int remote_port)
 	pthread_mutex_init(&c->ref_mutex, NULL);
 
 	context_rec *context = (context_rec *)apr_pcalloc(trans, sizeof(context_rec));
-	context->id = 0;
 	context->pool = trans;
 	context->type = 0;
 	context->version = NULL;
-	context->version_id = 0;
+	context->id = NULL;
 	c->context = context;
+	pthread_mutex_init(&c->context->context_mutex, NULL);
 	return c;
 }
 
@@ -55,6 +55,7 @@ conn_rec *remove_connect(conn_rec *c)
 
 void release_connect(conn_rec *c)
 {
+	zlog_info(z_cate, "release_connect");
 	if(c->send_queue->pool){
 		apr_pool_destroy(c->send_queue->pool);
 	}
@@ -63,6 +64,7 @@ void release_connect(conn_rec *c)
 	}
 	atomic_destroy(&c->heart_count);
 	pthread_mutex_destroy(&c->ref_mutex);
+	pthread_mutex_destroy(&c->context->context_mutex);
 	apr_pool_destroy(c->pool);
 
 }

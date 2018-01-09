@@ -108,7 +108,6 @@ void job_node_destroy(struct job_node_t *node)
 
 void push_result(struct buffer_queue_t *buf_queue, conn_rec *c)
 {
-	addref(c);
 	pthread_mutex_lock(&result_queue_mutex);
 	if(result_queue.p_last == NULL){
 		result_queue.p_last = result_queue.p_head = create_job_node(buf_queue, c);
@@ -166,7 +165,9 @@ struct buffer_queue_t * do_packet(struct job_node_t *job)
 				command_rec_free(&rep);
 				return result_buf;
 			}
+			command_rec_free(&rep);
 		}
+		command_rec_free(&req);
 	}
 	return NULL;
 }
