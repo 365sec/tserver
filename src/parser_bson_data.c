@@ -13,6 +13,8 @@ static struct _bson_parser
   {"exc_cmd_ok",parser_bson_exc_cmd_ok}
 };
 
+
+
 static apr_hash_t* bson_parse_hash = NULL;
 static apr_pool_t *bson_parse_pool = NULL;
 
@@ -101,13 +103,52 @@ struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
 	   return req;
 }
 
+
+void  parse_header(bson_iter_t *piter,char* uuid,char* src,char* dest){
+	   while (bson_iter_next (piter))
+	   {
+		   const char *key = bson_iter_key(piter);
+		   if(strcmp(key,"dest") == 0)
+		   {
+			   if (BSON_ITER_HOLDS_UTF8(piter))
+			   {
+			         const char *dst = bson_iter_utf8 (piter, NULL);
+			   	     strcpy(dest,dst);
+			   	}
+		   }else if(strcmp(key,"src") == 0)
+		   {
+			   if (BSON_ITER_HOLDS_UTF8(piter))
+			   {
+			     const char *s = bson_iter_utf8 (piter, NULL);
+			     strcpy(src,s);
+			   }
+		   }else if(strcmp(key,"uuid") == 0)
+		   {
+			   if (BSON_ITER_HOLDS_UTF8(piter))
+			   {
+				   const char *u = bson_iter_utf8 (piter, NULL);
+				   strcpy(uuid,u);
+			   }
+		   }
+	   }
+}
+
+
 struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	char* str;
 	bson_t *b;
     size_t err_offset;
 	bson_t bson;
 	bson_iter_t iter;
+	char dest[62];
+	char src[62];
+	char uuid[62];
 	struct  command_rec_t *req = NULL;
+	bool header_need = false ;
+	memset(uuid,0,sizeof(uuid));
+	memset(src,0,sizeof(src));
+	memset(dest,0,sizeof(dest));
+
 	if (bson_init_static (&bson, my_data, my_data_len))
 	 {
 	    if (bson_validate (&bson, BSON_VALIDATE_NONE, &err_offset))
@@ -128,8 +169,13 @@ struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 		            bson_init_static (&b_document, document_data, document_len);
 		            bson_iter_init (&document_iter, &b_document);
 		            struct _bson_parser *bp;
-		            if((bp=apr_hash_get( bson_parse_hash,key,APR_HASH_KEY_STRING)  )!= NULL){
-		            	req = bp->pfParse(&document_iter);
+		            if (strcmp(key,"header") == 0){
+		            	header_need = true;
+		            	parse_header(&document_iter,uuid, src, dest);
+		            }else{
+						if((bp=apr_hash_get( bson_parse_hash,key,APR_HASH_KEY_STRING)  )!= NULL){
+							req = bp->pfParse(&document_iter);
+						}
 		            }
 		            bson_destroy (&b_document);
 		       }
@@ -141,7 +187,23 @@ struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	    }
 	    bson_destroy (&bson);
 	 }
+
+	if(req && header_need){
+		req->uuid = apr_pstrdup(req->pool, uuid);
+		req->src = apr_pstrdup(req->pool, src);
+		req->dest = apr_pstrdup(req->pool, dest);
+
+	}
 	return req;
+}
+
+void encode_command_rep_header(bson_t * parent,struct  command_rec_t * rep){
+	 bson_t child_header;
+	 bson_append_document_begin (parent, "header", -1, &child_header);
+     BSON_APPEND_UTF8(&child_header, "dest", rep->dest ? rep->dest : "" );
+     BSON_APPEND_UTF8(&child_header, "src", rep->src ? rep->src : "" );
+	 BSON_APPEND_UTF8(&child_header, "uuid", rep->uuid ? rep->uuid : "" );
+	 bson_append_document_end (parent, &child_header);
 }
 
 bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
@@ -149,11 +211,8 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	  bson_t child_header;
 	  bson_t * b_object = bson_new();
 	  bool error = FALSE;
-      bson_append_document_begin (b_object, "header", -1, &child_header);
-	  BSON_APPEND_UTF8(&child_header, "dest", rep->dest ? rep->dest : "" );
-	  BSON_APPEND_UTF8(&child_header, "src", rep->src ? rep->src : "" );
-	  BSON_APPEND_UTF8(&child_header, "uuid", rep->uuid ? rep->uuid : "" );
-	  bson_append_document_end (b_object, &child_header);
+
+	  encode_command_rep_header(b_object,rep);
 	  switch (rep->type)
 	  {
 	    case  COMMAND_TYPE_OK:
@@ -165,7 +224,6 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	      bson_append_document_end (b_object, &child);
 	      break;
 	    case COMMAND_TYPE_CMD:
-
 	       bson_append_document_begin (b_object, "exc_cmd", -1, &child);
 	   	   if(rep->data.exc_cmd.cmdline){
 	   		   	zlog_info(z_cate,"cmdline :%s",rep->data.exc_cmd.cmdline);
