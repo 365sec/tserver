@@ -25,6 +25,7 @@ typedef struct db_exec_list_t
 
 void *db_read_thread(void *p);
 int fetch_command(DB_CON 	con);
+void *db_write_thread(void *p);
 void add_db_exec_rec(db_exec_rec *r);
 int init_db_exec_list();
 

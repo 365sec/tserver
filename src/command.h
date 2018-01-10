@@ -6,8 +6,8 @@
 /* 数据库中下发的指令类型 */
 typedef enum {
 	cmdline = 0,
-	file_download,
 	file_upload,
+	file_download,
 	trigger
 }db_command_type;
 
@@ -23,6 +23,9 @@ typedef enum {
 	COMMAND_TYPE_CMD,
 	COMMAND_TYPE_CMD_OK,
 	COMMAND_TYPE_CMD_ERROR,
+	COMMAND_TYPE_FILEULD,
+	COMMAND_TYPE_FILEULD_OK,
+	COMMAND_TYPE_FILEULD_ERROR,
 	COMMAND_TYPE_FILEDLD,
 	COMMAND_TYPE_FILEDLD_OK,
 	COMMAND_TYPE_FILEDLD_ERROR,
@@ -62,10 +65,17 @@ typedef struct command_rec_t {
 		struct {
 			char *err_info;
 		}exc_cmd_error;
+
+		struct {
+			char *filename; /*保存的文件名*/
+			char *content;  /*文件内容*/
+			int filesize;   /*文件长度*/
+		}file_upload;
+		struct {
+			char *info;
+		}file_upload_ok;
 	}data;
 }command_rec;
-
-
 
 struct command_rec_t*  command_rec_new(command_type   type);
 void command_rec_free(struct command_rec_t** rec);

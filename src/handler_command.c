@@ -44,6 +44,7 @@ struct command_rec_t* handler_command(struct command_rec_t* req, context_rec *ct
 		rep = handler_command_connect(req, ctx);
 		break;
 	case COMMAND_TYPE_CMD_OK:
+		handler_command_cmd_ok(req, ctx);
 		zlog_info(z_cate,"命令执行结果:%s", req->data.exc_cmd_ok.info);
 		break;
 	default :

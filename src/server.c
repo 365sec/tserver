@@ -48,7 +48,7 @@ int init_server()
 
 	 init_work_thread();
 	 parser_bson_init();
-
+	 init_db_exec_list();
 	 DBinit();
 	 return 1;
 }
@@ -121,6 +121,11 @@ int main(){
 	    return -1;
 	}
 
+	ret = pthread_create(&tid, NULL, db_write_thread, NULL);
+	if(ret != 0){
+	    zlog_error(z_cate, "创建指令读取线程失败! 错误码: %d", ret);
+	    return -1;
+	}
 	accept_command();
 
 	close(listenfd);

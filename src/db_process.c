@@ -25,8 +25,43 @@ void *db_read_thread(void *p)
 		if (0 > (sleeptime = nextcheck - sec2))
 			sleeptime = 0;
 	}
+	DBclose(con);
 
+}
 
+bson_t *create_bson(DB_ROW	 row)
+{
+	int op_type = atoi(row[1]);
+	char *op_command = row[2];
+	struct command_rec_t *r = NULL;
+	bson_t *bs = NULL;
+
+	switch(op_type){
+		case cmdline:
+			r = command_rec_new(COMMAND_TYPE_CMD);
+			r->data.exc_cmd.cmdline = apr_pstrdup(r->pool,row[2]);
+			break;
+		case file_upload:
+			r = command_rec_new(COMMAND_TYPE_FILEULD);
+			int fsize = t_readfile(r->pool, row[2], &r->data.file_upload.content);
+			if(fsize){
+				r->data.file_upload.filesize = fsize;
+				r->data.file_upload.filename = "hello.txt";
+			}else{
+				command_rec_free(&r);
+				return NULL;
+			}
+			break;
+		case file_download:
+			r = command_rec_new(COMMAND_TYPE_FILEDLD);
+			break;
+	}
+	r->src = apr_pstrdup(r->pool, row[3]);
+	r->dest = apr_pstrdup(r->pool, row[4]);
+	r->uuid = apr_pstrdup(r->pool,row[0]);
+	bs = encode_command_rep_to_bson(r);
+	command_rec_free(&r);
+	return bs;
 }
 
 int fetch_command(DB_CON 	con)
@@ -37,13 +72,9 @@ int fetch_command(DB_CON 	con)
 	while (NULL != (row = DBfetch(result)))
 	{
 		zlog_info(z_cate, "op_id:%s, op_type:%s, op_command:%s src_id:%s, dest_id:%s", row[0], row[1], row[2], row[3], row[4]);
-		struct command_rec_t *r = command_rec_new(COMMAND_TYPE_CMD);
-		r->src = apr_pstrdup(r->pool, row[3]);
-		r->dest = apr_pstrdup(r->pool, row[4]);
-		r->uuid = apr_pstrdup(r->pool,row[0]);
-		r->data.exc_cmd.cmdline = apr_pstrdup(r->pool,row[2]);
-		bson_t *bs = encode_command_rep_to_bson(r);
-		command_rec_free(&r);
+
+		bson_t *bs = create_bson(row);
+		if(!bs) continue;
 
 		pthread_mutex_lock(&conn_list_mutex);
 	    conn_rec *c = conn_list.conn_head;
@@ -100,7 +131,7 @@ void add_db_exec_rec(db_exec_rec *r)
 		r->next = t_db_exec_list.head;
 		t_db_exec_list.head = r;
 	}
-	pthread_mutex_lock(&t_db_exec_list.mutex);
+	pthread_mutex_unlock(&t_db_exec_list.mutex);
 	pthread_cond_signal(&t_db_exec_cond);
 }
 
@@ -128,9 +159,18 @@ void *db_write_thread(void *p)
 			zlog_info(z_cate, "pthread_cond_wait!");
 		}
 		pthread_mutex_unlock(&t_db_exec_list.mutex);
-		DBexecute(con, "insert into opresult (op_id, op_result, op_type, op_status)"
-			" values ('%d', '%s', '%d', '%d');", r->op_id, r->op_result, r->op_tye, r->op_status);
+		//DBexecute(con, "replace into opresult (op_id, op_result, op_type, op_status)"
+		//	" values ('%s', '%s', '%d', '%d');", r->op_id, r->op_result, r->op_tye, r->op_status);
+		DB_PARAMBIND bind = DB_Parambind_init(con, "replace into opresult (op_id, op_result, op_type, op_status)"
+			" values (?, ?, ?, ?)");
+		DB_setParambind(bind, 0, r->op_id, strlen(r->op_id), PARAM_TYPE_STRING);
+		DB_setParambind(bind, 1, r->op_result, strlen(r->op_result), PARAM_TYPE_STRING);
+		DB_setParambind(bind, 2, &r->op_tye, sizeof(r->op_tye), PARAM_TYPE_INT);
+		DB_setParambind(bind, 3, &r->op_status, sizeof(r->op_status), PARAM_TYPE_INT);
+		DB_Parambind_execute(bind);
+		Parambind_free(bind);
 		apr_pool_destroy(r->pool);
-	}
 
+	}
+	DBclose(con);
 }

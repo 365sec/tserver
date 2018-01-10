@@ -173,3 +173,18 @@ DB_RESULT DBselect(DB_CON con, const char *fmt, ...)
 
 	return rc;
 }
+
+DB_PARAMBIND DB_Parambind_init(DB_CON con, const char *sql)
+{
+	return t_param_bind_init(con, sql);
+}
+
+int DB_setParambind(DB_PARAMBIND bind, int index, void *value, int length, int type)
+{
+	return t_set_param_bind(bind, index, value, length, type);
+}
+
+int DB_Parambind_execute(DB_PARAMBIND bind)
+{
+	return t_param_bind_execute(bind);
+}

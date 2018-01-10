@@ -13,8 +13,6 @@ static struct _bson_parser
   {"exc_cmd_ok",parser_bson_exc_cmd_ok}
 };
 
-
-
 static apr_hash_t* bson_parse_hash = NULL;
 static apr_pool_t *bson_parse_pool = NULL;
 
@@ -65,17 +63,6 @@ struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
 		 	  req->data.connect.id = apr_pstrdup(req->pool, sensor_id);
 		 	  printf("id = %s\n",sensor_id);
 		   }
-
-		   /*
-		 if (BSON_ITER_HOLDS_BINARY (piter))
-		 {
-		     bson_iter_binary (piter, &subtype, &uuidlen, &uuidbin);
-		     if (subtype == BSON_SUBTYPE_UUID)
-		     {
-		        printf("uuid is binary");
-		     }
-		  }*/
-
 	   }else if(strcmp(key,"id") == 0) {
 
 	   }
@@ -102,7 +89,6 @@ struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
 	   }
 	   return req;
 }
-
 
 void  parse_header(bson_iter_t *piter,char* uuid,char* src,char* dest){
 	   while (bson_iter_next (piter))
@@ -132,7 +118,6 @@ void  parse_header(bson_iter_t *piter,char* uuid,char* src,char* dest){
 		   }
 	   }
 }
-
 
 struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	char* str;
@@ -170,8 +155,8 @@ struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 		            bson_iter_init (&document_iter, &b_document);
 		            struct _bson_parser *bp;
 		            if (strcmp(key,"header") == 0){
-		            	header_need = true;
-		            	parse_header(&document_iter,uuid, src, dest);
+		           		header_need = true;
+		           		parse_header(&document_iter,uuid, src, dest);
 		            }else{
 						if((bp=apr_hash_get( bson_parse_hash,key,APR_HASH_KEY_STRING)  )!= NULL){
 							req = bp->pfParse(&document_iter);
@@ -187,7 +172,6 @@ struct command_rec_t *parse_bson(uint8_t * my_data, size_t my_data_len){
 	    }
 	    bson_destroy (&bson);
 	 }
-
 	if(req && header_need){
 		req->uuid = apr_pstrdup(req->pool, uuid);
 		req->src = apr_pstrdup(req->pool, src);
@@ -224,6 +208,7 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	      bson_append_document_end (b_object, &child);
 	      break;
 	    case COMMAND_TYPE_CMD:
+
 	       bson_append_document_begin (b_object, "exc_cmd", -1, &child);
 	   	   if(rep->data.exc_cmd.cmdline){
 	   		   	zlog_info(z_cate,"cmdline :%s",rep->data.exc_cmd.cmdline);
@@ -242,18 +227,6 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	  }
 
 	  return b_object;
-
-	  /**
-	   *BSON_APPEND_UTF8
-	   *  case SIM_COMMAND_TYPE_NOACK:
-      bson_append_document_begin (b_object, "noack", -1, &child);
-      BSON_APPEND_INT32  (&child, "id", cmd->id);
-      sim_uuid = sim_uuid_new_from_string (cmd->data.noack.your_sensor_id);
-      bin_uuid = sim_uuid_get_uuid (sim_uuid);
-      BSON_APPEND_BINARY (&child, "your_sensor_id", BSON_SUBTYPE_UUID, *bin_uuid, 16);
-      g_object_unref (sim_uuid);
-      bson_append_document_end (b_object, &child);
-      break;*/
 }
 
 

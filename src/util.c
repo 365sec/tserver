@@ -1,6 +1,7 @@
 #include<stdio.h>
 #include <time.h>
-#include"util.h"
+#include <fcntl.h>
+#include "util.h"
 
 
 #define UUID_FORMAT "0x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"
@@ -41,4 +42,29 @@ time_t t_time()
 void t_sleep_loop(int second)
 {
 	sleep(second);
+}
+
+int t_readfile(apr_pool_t *pool, char *filename, char **buf)
+{
+	int fd = 0;
+	int file_len = 0;
+	int ret = 1;
+	char *buffer = NULL;
+
+	if((fd=open(filename, O_RDONLY))==-1){
+		return 0;
+	}
+	file_len= lseek(fd, 0L,SEEK_END);
+	lseek(fd,0L,SEEK_SET);
+	buffer = *buf = (char*)apr_palloc(pool, file_len);
+
+	while(ret){
+		ret = read(fd, buffer, 1024);
+		if(ret == -1){
+			return 0;
+		}
+		file_len-=ret;
+		buffer +=ret;
+	}
+	return file_len;
 }

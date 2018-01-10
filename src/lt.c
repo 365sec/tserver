@@ -38,7 +38,7 @@ int create_eventfd()
 int epoll_add_event(int ep, int fd, void* conn){
 	addref((conn_rec *)conn);
 	struct epoll_event ee;
-	ee.events = EPOLLIN|EPOLLRDHUP|EPOLLERR;
+	ee.events = EPOLLIN;
 	ee.data.ptr = conn;
 	if(epoll_ctl(ep, EPOLL_CTL_ADD, fd, &ee) == -1){
 		return -1;
@@ -166,7 +166,7 @@ int handle_write(conn_rec *c)
 	if(ret == SEND_COMPLATE){
 		buffer_queue_detroy(c->send_queue);
 		c->send_queue = NULL;
-		epoll_mod_event(epfd, c->fd, c, EPOLLIN|EPOLLRDHUP|EPOLLERR);
+		epoll_mod_event(epfd, c->fd, c, EPOLLIN);
 	}
 	else if(ret == SEND_FAILED){
 		close_connect(c);
