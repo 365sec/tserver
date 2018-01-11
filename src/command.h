@@ -71,9 +71,15 @@ typedef struct command_rec_t {
 			char *content;  /*文件内容*/
 			int filesize;   /*文件长度*/
 		}file_upload;
+
 		struct {
 			char *info;
 		}file_upload_ok;
+
+		struct {
+		    char *info;
+	    }file_upload_error;
+
 	}data;
 }command_rec;
 

@@ -10,7 +10,9 @@ static struct _bson_parser
   struct command_req * (*pfParse)(bson_iter_t *);
 }bson_parser[]={
   {"connect", parser_bson_connect},
-  {"exc_cmd_ok",parser_bson_exc_cmd_ok}
+  {"exc_cmd_ok",parser_bson_exc_cmd_ok},
+  {"file_upload_ok",parser_bson_file_upload_ok},
+  {"file_upload_error",parser_bson_file_upload_error},
 };
 
 static apr_hash_t* bson_parse_hash = NULL;
@@ -70,12 +72,7 @@ struct command_rec_t * parser_bson_connect(bson_iter_t *piter){
    return req;
 }
 
-struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
-	   bool error = false ;
-	   bson_subtype_t    subtype;
-	   uint32_t uuidlen;
-	   const uint8_t *uuidbin;
-	   struct command_rec_t*  req =  command_rec_new(COMMAND_TYPE_CMD_OK);
+void parser_bson_error(bson_iter_t *piter,struct command_rec_t*  req){
 	   while (bson_iter_next (piter))
 	   {
 		  const char *key = bson_iter_key(piter);
@@ -83,10 +80,52 @@ struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
 			   if (BSON_ITER_HOLDS_UTF8(piter))
 			   {
 			     const char *info = bson_iter_utf8 (piter, NULL);
-			     req->data.exc_cmd_ok.info = apr_pstrdup(req->pool, info);
+			     switch(req->type){
+			      case COMMAND_TYPE_FILEULD_ERROR:
+			         req->data.file_upload_error.info = apr_pstrdup(req->pool, info);
+			         break;
+			     }
 			   }
 		   }
 	   }
+}
+
+void parser_bson_ok(bson_iter_t *piter,struct command_rec_t*  req){
+	   while (bson_iter_next (piter))
+	   {
+		  const char *key = bson_iter_key(piter);
+		  if(strcmp(key,"info") == 0) {
+			   if (BSON_ITER_HOLDS_UTF8(piter))
+			   {
+			     const char *info = bson_iter_utf8 (piter, NULL);
+			     switch(req->type){
+			       case COMMAND_TYPE_CMD_OK:
+			          req->data.exc_cmd_ok.info = apr_pstrdup(req->pool, info);
+			          break;
+			       case COMMAND_TYPE_FILEULD_OK:
+			    	  req->data.file_upload_ok.info = apr_pstrdup(req->pool, info);
+			    	  break;
+			     }
+			   }
+		   }
+	   }
+}
+
+struct command_rec_t * parser_bson_file_upload_ok(bson_iter_t *piter){
+	   struct command_rec_t*  req =  command_rec_new(COMMAND_TYPE_FILEULD_OK);
+	   parser_bson_ok(piter, req);
+	   return req;
+}
+
+struct command_rec_t * parser_bson_file_upload_error(bson_iter_t *piter){
+	   struct command_rec_t*  req =  command_rec_new(COMMAND_TYPE_FILEULD_ERROR);
+	   parser_bson_error(piter,req);
+	   return req;
+}
+
+struct command_rec_t * parser_bson_exc_cmd_ok(bson_iter_t *piter){
+	   struct command_rec_t*  req =  command_rec_new(COMMAND_TYPE_CMD_OK);
+	   parser_bson_ok(piter, req);
 	   return req;
 }
 
@@ -192,7 +231,6 @@ void encode_command_rep_header(bson_t * parent,struct  command_rec_t * rep){
 
 bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	  bson_t child;
-	  bson_t child_header;
 	  bson_t * b_object = bson_new();
 	  bool error = FALSE;
 
@@ -200,22 +238,30 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 	  switch (rep->type)
 	  {
 	    case  COMMAND_TYPE_OK:
-	      bson_append_document_begin (b_object, "ok", -1, &child);
-	      if(rep->data.ok.info){
-	    	printf("ok_info :%s",rep->data.ok.info);
-	        BSON_APPEND_UTF8(&child, "id", rep->data.ok.info);
-	      }
-	      bson_append_document_end (b_object, &child);
-	      break;
+	       bson_append_document_begin (b_object, "ok", -1, &child);
+	       if(rep->data.ok.info){
+	    	 printf("ok_info :%s",rep->data.ok.info);
+	         BSON_APPEND_UTF8(&child, "id", rep->data.ok.info);
+	       }
+	       bson_append_document_end (b_object, &child);
+	       break;
 	    case COMMAND_TYPE_CMD:
-
-	       bson_append_document_begin (b_object, "exc_cmd", -1, &child);
-	   	   if(rep->data.exc_cmd.cmdline){
+	        bson_append_document_begin (b_object, "exc_cmd", -1, &child);
+	   	    if(rep->data.exc_cmd.cmdline){
 	   		   	zlog_info(z_cate,"cmdline :%s",rep->data.exc_cmd.cmdline);
 	   	        BSON_APPEND_UTF8(&child, "cmdline", rep->data.exc_cmd.cmdline);
 	   	    }
 	   	    bson_append_document_end (b_object, &child);
 	   	    break;
+	    case COMMAND_TYPE_FILEULD:
+	        bson_append_document_begin (b_object, "fileupload", -1, &child);
+	 	   	if(rep->data.file_upload.content){
+	 	   		 zlog_info(z_cate,"filename :%s",rep->data.file_upload.filename);
+	 	   		 BSON_APPEND_BINARY (&child, "content", BSON_SUBTYPE_BINARY, rep->data.file_upload.content, rep->data.file_upload.filesize);
+	 	   	     BSON_APPEND_UTF8(&child, "filename", rep->data.file_upload.filename);
+	 	   	 }
+	 	   	 bson_append_document_end (b_object, &child);
+	    	break;
 	    default:
 	    	zlog_error(z_cate,"BSON for type '%d' not implemmented", rep->type);
 	        error = TRUE;
@@ -225,7 +271,6 @@ bson_t *  encode_command_rep_to_bson (struct  command_rec_t * rep){
 		  bson_destroy (b_object);
 		  b_object = NULL;
 	  }
-
 	  return b_object;
 }
 
